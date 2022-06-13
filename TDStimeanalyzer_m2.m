@@ -586,7 +586,7 @@ if isfield(handles, 'indlist')
     index = handles.indlist(handles.globalindex);
 else
     globalindex = str2double(get(handles.edit1, 'String')); 
-    if globalindex > length(handles.names_tds) || eventindex < 1
+    if globalindex > length(handles.names_tds) || globalindex < 1
         return;
     else
         handles.globalindex = globalindex;

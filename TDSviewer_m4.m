@@ -88,6 +88,9 @@ set(handles.slider6, 'Value', 5);
 set(handles.slider6, 'Min', 5);
 set(handles.slider6, 'Max', 100);
 
+set(handles.slider6, 'Value', 5);
+set(handles.slider6, 'Min', 5);
+set(handles.slider6, 'Max', 100);
 
 % --- Disable all sliders
 
@@ -120,7 +123,9 @@ names_tds = cell(size(files));
 names_mag = cell(size(files));
 for i = 1:length(names_tds)
     names_tds{i} = [path, '\', files(i).name, '\', ...
-        selector_2, '_l2_tds_lang_', files(i).name(10:24), '_v01.cdf'];  
+        selector_2, '_l2_tds_lang_', files(i).name(10:24), '_v01.cdf'];
+    names_mag{i} = [path, '\', files(i).name, '\', ...
+        selector_2, '_l2_mag_lang_', files(i).name(10:24), '_v01.cdf']; 
 end
 
 handles.names_tds = names_tds;
@@ -133,6 +138,10 @@ data = spdfcdfread(handles.names_tds{1});
 
 [f, I, pE] = findmainfreq(data{6}, mean(diff(data{2})));
 set(handles.slider2, 'Value', f(I));
+
+set(handles.slider7, 'Value', 0);
+set(handles.slider7, 'Min', 0);
+set(handles.slider7, 'Max', f(I));
 
 plot(handles.axes1, data{2}, data{6});
 
@@ -154,6 +163,8 @@ set(handles.edit2, 'Enable', 'off');
 handles.data = data;
 handles.mode = 'ori';
 handles.comp = 'all';
+
+set(handles.pushbutton1, 'String', 'Component: All')
 
 % Update handles structure
 guidata(hObject, handles);
@@ -196,6 +207,9 @@ switch mode
         
         type = 'bandpass';
     case 'hpf'
+        Rp = 3;  % Maximum attenuation in passband
+        Rs = 20; % Minimum attenuation in stopband
+        
         fp = varargin{1};
         fs = varargin{2};
         
@@ -311,7 +325,7 @@ function drawfields(data, axes, f1, f2, mode, comp)
                 'lpf', f1, f2); % f1: pass f2: cutoff
 
             hold(axes(2), 'on');
-            plot(axes(2), ones(1, 128), linspace(0, 1, 128), ...
+            plot(axes(2), f1*ones(1, 128), linspace(0, 1, 128), ...
                 'LineWidth', 1, 'LineStyle', '-.', 'Color', 'g');
             hold(axes(2), 'off');
     end
@@ -333,7 +347,10 @@ function drawfields(data, axes, f1, f2, mode, comp)
             legend(axes(1), 'E_{B\times(B\timesV)}')
     end
     
+    [f, I, ~] = findmainfreq(data{6}, mean(diff(data{2})));
+    
     xlim(axes(1), [data{2}(1) data{2}(end)])
+    xlim(axes(2), [0 2*f(I)])
 
     
 function plotstftspec(data, axes, comp)
@@ -480,6 +497,11 @@ function slider5_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+fp = get(hObject, 'Value');
+
+drawfields(handles.data, [handles.axes1, handles.axes2],...
+        fp, fp + 1, 'lpf', handles.comp);
+    
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
@@ -502,6 +524,11 @@ function slider6_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+fp = get(hObject, 'Value');
+
+drawfields(handles.data, [handles.axes1, handles.axes2],...
+        fp, fp + 1, 'hpf', handles.comp);
+    
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
@@ -523,6 +550,13 @@ function slider7_Callback(hObject, eventdata, handles)
 % hObject    handle to slider7 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+flim = get(handles.axes2, 'XLim');
+
+cen = (flim(1) + flim(2))/2;
+
+range = get(handles.slider7, 'Value');
+
+xlim(handles.axes2, [cen - cen + range, cen + cen - range])
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
@@ -593,7 +627,7 @@ switch get(hObject, 'tag')
         set(handles.slider5, 'Enable', 'on')
         set(handles.slider6, 'Enable', 'off')
         
-        stb = get(handles.slider6, 'Value');
+        stb = get(handles.slider5, 'Value');
         
         drawfields(handles.data, [handles.axes1, handles.axes2],...
             stb, stb + 1, 'lpf', handles.comp);
@@ -670,7 +704,7 @@ switch name
         set(hObject, 'String', 'Component: All');
 end
 
-
+guidata(hObject, handles)
 
 
 % --- Executes on button press in pushbutton2.
@@ -681,6 +715,7 @@ function pushbutton2_Callback(hObject, eventdata, handles)
     if handles.eventindex > 1
         handles.eventindex = handles.eventindex - 1;
         handles.data = spdfcdfread(handles.names_tds{handles.eventindex});
+        mf = spdfcdfread(handles.names_mag{handles.eventindex});
     else
         return;
     end
@@ -701,12 +736,26 @@ function pushbutton2_Callback(hObject, eventdata, handles)
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 f(I), bw, 'bpf', handles.comp);
         case 'hpf'
+            stb = get(handles.slider6, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'hpf', handles.comp);
         case 'lpf'
+            stb = get(handles.slider5, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'lpf', handles.comp);
     end
+    
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        mf{5});
+    hold(handles.axes4, 'on')
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        sqrt(mf{5}(:, 1).^2 + mf{5}(:, 2).^2 + mf{5}(:, 3).^2), 'black');
+    hold(handles.axes4, 'off')
+    xlim(handles.axes4, [-1.5 1.5])
+    
+    set(handles.slider7, 'Value', 0);
+    set(handles.slider7, 'Min', 0);
+    set(handles.slider7, 'Max', f(I));
     
     plotstftspec(handles.data, handles.axes3, handles.comp);
     
@@ -723,6 +772,7 @@ function pushbutton3_Callback(hObject, eventdata, handles)
     if handles.eventindex < length(handles.names_tds)
         handles.eventindex = handles.eventindex + 1;
         handles.data = spdfcdfread(handles.names_tds{handles.eventindex});
+        mf = spdfcdfread(handles.names_mag{handles.eventindex});
     else
         return;
     end
@@ -730,7 +780,7 @@ function pushbutton3_Callback(hObject, eventdata, handles)
     [f, I, pE] = findmainfreq(handles.data{6}, mean(diff(handles.data{2})));
     plot(handles.axes2, f, pE);
     
-    bw = get(handles.slider4, 'Value') + get(handles.slider3, 'Value');
+    bw = get(handles.slider4, 'Value') + get(handles.slider3, 'Value'); 
     
     set(handles.slider2, 'Value', f(I));
     set(handles.slider1, 'Value', 0);
@@ -743,16 +793,30 @@ function pushbutton3_Callback(hObject, eventdata, handles)
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 f(I), bw, 'bpf', handles.comp);
         case 'hpf'
+            stb = get(handles.slider6, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'hpf', handles.comp);
         case 'lpf'
+            stb = get(handles.slider5, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'lpf', handles.comp);
     end
     
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        mf{5});
+    hold(handles.axes4, 'on')
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        sqrt(mf{5}(:, 1).^2 + mf{5}(:, 2).^2 + mf{5}(:, 3).^2), 'black');
+    hold(handles.axes4, 'off')
+    xlim(handles.axes4, [-1.5 1.5])
+    
     plotstftspec(handles.data, handles.axes3, handles.comp);
     
     set(handles.edit1, 'String', num2str(handles.eventindex));
+    
+    set(handles.slider7, 'Value', 0);
+    set(handles.slider7, 'Min', 0);
+    set(handles.slider7, 'Max', f(I));
     
     guidata(hObject, handles)
 
@@ -769,6 +833,7 @@ function pushbutton4_Callback(hObject, eventdata, handles)
     elseif eventindex >= 1 && eventindex <= length(handles.names_tds)
         handles.eventindex = eventindex;
         handles.data = spdfcdfread(handles.names_tds{handles.eventindex});
+        mf = spdfcdfread(handles.names_mag{handles.eventindex});
     else
         return
     end
@@ -789,12 +854,26 @@ function pushbutton4_Callback(hObject, eventdata, handles)
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 f(I), bw, 'bpf', handles.comp);
         case 'hpf'
+            stb = get(handles.slider6, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'hpf', handles.comp);
         case 'lpf'
+            stb = get(handles.slider5, 'Value');
             drawfields(handles.data, [handles.axes1, handles.axes2],...
                 stb, stb + 1, 'lpf', handles.comp);
     end
+    
+    set(handles.slider7, 'Value', 0);
+    set(handles.slider7, 'Min', 0);
+    set(handles.slider7, 'Max', f(I));
+    
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        mf{5});
+    hold(handles.axes4, 'on')
+    plot(handles.axes4, 1440*(mf{1} - mf{1}(floor(length(mf{1})/2))), ...
+        sqrt(mf{5}(:, 1).^2 + mf{5}(:, 2).^2 + mf{5}(:, 3).^2), 'black');
+    hold(handles.axes4, 'off')
+    xlim(handles.axes4, [-1.5 1.5])
     
     plotstftspec(handles.data, handles.axes3, handles.comp);
     
